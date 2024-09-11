@@ -10,6 +10,14 @@ const (
 	TblPtrPreinc  TblPtrAction = 3
 )
 
+type InterruptState int
+
+const (
+	InterruptStateNone InterruptState = iota
+	InterruptStateHighPrio
+	InterruptStateLowPrio
+)
+
 type CPU struct {
 	pc                 uint32
 	fetchedInstruction uint16
@@ -18,8 +26,8 @@ type CPU struct {
 	pcLatchHigh  uint8
 	pcLatchUpper uint8
 
-	flush                 bool
-	highPriorityInterrupt bool
+	flush          bool
+	interruptState InterruptState
 
 	shadowWreg   uint8
 	shadowStatus uint8
@@ -28,13 +36,14 @@ type CPU struct {
 	Alu            ALU
 	Stack          Stack
 	BankController BankController
+	Interrupts     InterruptController
 
 	nextAction func(instruction.Instruction)
 
-	TableRead                func(TblPtrAction)
-	TableWrite               func(TblPtrAction)
-	SetGlobalInterruptEnable func(highPrio, enabled bool)
+	TableRead  func(TblPtrAction)
+	TableWrite func(TblPtrAction)
 
+	Sleep        *SleepController
 	Config       *ConfigTable
 	DataBus      DataBusReadWriter
 	ProgramBus   ProgramBusReadWriter
@@ -43,7 +52,6 @@ type CPU struct {
 
 type CpuEventHandler interface {
 	IllegalInstruction()
-	Sleep()
 }
 
 func (cpu *CPU) BusRead(addr uint16) (uint8, AddrMask) {
@@ -85,9 +93,13 @@ func (cpu *CPU) BusWrite(addr uint16, data uint8) AddrMask {
 
 func (cpu *CPU) PowerOnReset() {
 	*cpu = CPU{
-		DataBus:      cpu.DataBus,
-		ProgramBus:   cpu.ProgramBus,
-		EventHandler: cpu.EventHandler,
+		DataBus:        cpu.DataBus,
+		ProgramBus:     cpu.ProgramBus,
+		EventHandler:   cpu.EventHandler,
+		Sleep:          cpu.Sleep,
+		Config:         cpu.Config,
+		Interrupts:     cpu.Interrupts,
+		BankController: cpu.BankController,
 	}
 }
 
@@ -99,7 +111,11 @@ func (cpu *CPU) GotoInterrupt(highPrio bool) {
 	cpu.shadowWreg = cpu.wreg
 	cpu.shadowStatus = uint8(cpu.Alu.status)
 	cpu.shadowBsr = cpu.BankController.BSR
-	cpu.highPriorityInterrupt = highPrio
+	if highPrio {
+		cpu.interruptState = InterruptStateHighPrio
+	} else {
+		cpu.interruptState = InterruptStateLowPrio
+	}
 
 	if !cpu.Stack.Push(cpu.pc) {
 		return
@@ -137,6 +153,14 @@ func (cpu *CPU) stackPop() bool {
 }
 
 func (cpu *CPU) Tick() {
+	if cpu.Interrupts.CheckHighPriority() {
+		cpu.GotoInterrupt(true)
+		return
+	} else if cpu.Interrupts.CheckLowPriority() {
+		cpu.GotoInterrupt(false)
+		return
+	}
+
 	if cpu.flush {
 		cpu.FetchInstruction()
 		cpu.flush = false

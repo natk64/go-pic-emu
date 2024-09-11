@@ -2,36 +2,34 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/natk64/go-pic-emu/binary"
 	"github.com/natk64/go-pic-emu/pic18"
 )
 
-var _ pic18.CpuEventHandler = FuncEventHandler{}
+var _ pic18.CpuEventHandler = DefaultEventHandler{}
 
-type FuncEventHandler struct {
-	SleepFunc func()
-}
+type DefaultEventHandler struct{}
 
-func (f FuncEventHandler) IllegalInstruction() {
+func (DefaultEventHandler) IllegalInstruction() {
 	panic("invalid instruction")
-}
-
-func (f FuncEventHandler) Sleep() {
-	if f.SleepFunc != nil {
-		f.SleepFunc()
-	}
 }
 
 func main() {
 	run := true
+	sleep := &pic18.SleepController{
+		OnSleep:  func() { run = false },
+		OnWakeUp: func() { run = true },
+	}
+
 	cpu := &pic18.CPU{
-		Config: &pic18.ConfigTable{},
-		EventHandler: FuncEventHandler{
-			SleepFunc: func() {
-				run = false
-			},
-		},
+		Config:       &pic18.ConfigTable{},
+		Stack:        pic18.Stack{Data: make([]uint32, 31)},
+		Sleep:        sleep,
+		Interrupts:   pic18.InterruptController{Sleep: sleep},
+		EventHandler: DefaultEventHandler{},
 	}
 
 	dataBus := pic18.MultiBusReadWriter[uint16]{
@@ -39,30 +37,24 @@ func main() {
 		&cpu.Alu,
 		&cpu.Stack,
 		&cpu.BankController,
+		&cpu.Interrupts,
+	}
+
+	tmr0 := cpu.Interrupts.CreateInterrupt(pic18.InterruptConfig{
+		DebugLabel: "TMR0",
+		Peripheral: true,
+		Request:    pic18.InterruptFlag{Register: pic18.Registers.INTCON, Bit: 2},
+		Priority:   pic18.InterruptFlag{Register: pic18.Registers.INTCON2, Bit: 2},
+		Enable:     pic18.InterruptFlag{Register: pic18.Registers.INTCON, Bit: 5},
+	})
+	program, err := binary.ReadHexFile("program.hex")
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	programBus := pic18.MultiBusReadWriter[uint32]{
 		pic18.Memory[uint32]{
-			Data: []byte{
-				0x00,
-				0x00,
-
-				// ADDLW 1
-				0x01,
-				0x0F,
-
-				// BNZ -2
-				0xFE,
-				0xE1,
-
-				// MOVLW 69
-				0x45,
-				0x0E,
-
-				// SLEEP
-				0x03,
-				0x00,
-			},
+			Data: program,
 		},
 	}
 
@@ -79,6 +71,7 @@ func main() {
 		cpu.Tick()
 	}
 
+	tmr0.Raise()
 	elapsed := time.Since(start)
 	fmt.Printf("%d ticks in %v, %v MHz\n", ticks, elapsed, ticks/int(elapsed.Microseconds()))
 

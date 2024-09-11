@@ -116,6 +116,10 @@ func (raw Instruction) Opcode() Opcode {
 		return MOVLB
 	} else if (raw & 0b1111111111000000) == 0b1110111000000000 {
 		return LFSR
+	} else if (raw & 0b1111111111000000) == 0b1110100011000000 {
+		return ADDULNK
+	} else if (raw & 0b1111111111000000) == 0b1110100111000000 {
+		return SUBULNK
 	} else if (raw & 0b1111111110000000) == 0b1110101100000000 {
 		return MOVSF
 	} else if (raw & 0b1111111110000000) == 0b1110101110000000 {

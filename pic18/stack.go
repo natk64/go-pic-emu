@@ -1,7 +1,7 @@
 package pic18
 
 type Stack struct {
-	data    *[31]uint32
+	Data    []uint32
 	pointer uint8
 
 	full      bool
@@ -9,16 +9,16 @@ type Stack struct {
 }
 
 func (stack *Stack) Push(value uint32) bool {
-	if int(stack.pointer) == len(stack.data) {
+	if int(stack.pointer) == len(stack.Data) {
 		// Stack was already full, this doesn't cause a reset so just return true
 		stack.full = true
 		return true
 	}
 
-	stack.data[stack.pointer] = value
+	stack.Data[stack.pointer] = value
 	stack.pointer++
 
-	if int(stack.pointer) == len(stack.data) {
+	if int(stack.pointer) == len(stack.Data) {
 		// Stack became full
 		stack.full = true
 	}
@@ -40,14 +40,14 @@ func (stack *Stack) Top() uint32 {
 	if stack.pointer == 0 {
 		return 0
 	}
-	return stack.data[stack.pointer-1]
+	return stack.Data[stack.pointer-1]
 }
 
 func (stack *Stack) SetTop(value uint32) {
 	if stack.pointer == 0 {
 		return
 	}
-	stack.data[stack.pointer-1] = value
+	stack.Data[stack.pointer-1] = value
 }
 
 func (stack *Stack) BusRead(addr uint16) (uint8, AddrMask) {

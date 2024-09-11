@@ -3,6 +3,7 @@ package pic18
 type BankController struct {
 	ExtendedSet bool
 	BSR         uint8
+	FSR         [3]uint16
 	Bus         BusReadWriter[uint16]
 }
 
@@ -12,10 +13,7 @@ func (controller BankController) address(location uint8, useBankSelectRegister b
 	}
 
 	if controller.ExtendedSet && location < 0x60 {
-		fsr2low, _ := controller.Bus.BusRead(Registers.FSR2L)
-		fsr2high, _ := controller.Bus.BusRead(Registers.FSR2H)
-
-		return ((uint16(fsr2high) << 8) | uint16(fsr2low)) + uint16(location)
+		return (controller.FSR[2] + uint16(location))
 	}
 
 	if location >= 0x80 {

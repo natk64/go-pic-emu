@@ -15,6 +15,10 @@ func (cpu *CPU) ExecuteInstruction(inst instruction.Instruction, extendedSet boo
 		}
 	case instruction.ADDLW:
 		cpu.execADDLW(inst)
+	case instruction.ADDULNK:
+		if extendedSet {
+			cpu.execADDULNK(inst)
+		}
 	case instruction.ADDWF:
 		cpu.execADDWF(inst)
 	case instruction.ADDWFC:
@@ -100,11 +104,11 @@ func (cpu *CPU) ExecuteInstruction(inst instruction.Instruction, extendedSet boo
 	case instruction.MOVLW:
 		cpu.execMOVLW(inst)
 	case instruction.MOVSF:
-		if !extendedSet {
+		if extendedSet {
 			cpu.execMOVSF(inst)
 		}
 	case instruction.MOVSS:
-		if !extendedSet {
+		if extendedSet {
 			cpu.execMOVSS(inst)
 		}
 	case instruction.MOVWF:
@@ -124,7 +128,7 @@ func (cpu *CPU) ExecuteInstruction(inst instruction.Instruction, extendedSet boo
 	case instruction.PUSH:
 		cpu.execPUSH(inst)
 	case instruction.PUSHL:
-		if !extendedSet {
+		if extendedSet {
 			cpu.execPUSHL(inst)
 		}
 	case instruction.RCALL:
@@ -150,13 +154,17 @@ func (cpu *CPU) ExecuteInstruction(inst instruction.Instruction, extendedSet boo
 	case instruction.SLEEP:
 		cpu.execSLEEP(inst)
 	case instruction.SUBFSR:
-		if !extendedSet {
+		if extendedSet {
 			cpu.execSUBFSR(inst)
 		}
 	case instruction.SUBFWB:
 		cpu.execSUBFWB(inst)
 	case instruction.SUBLW:
 		cpu.execSUBLW(inst)
+	case instruction.SUBULNK:
+		if extendedSet {
+			cpu.execSUBULNK(inst)
+		}
 	case instruction.SUBWF:
 		cpu.execSUBWF(inst)
 	case instruction.SUBWFB:
@@ -199,35 +207,23 @@ func offsetPC_11bit(pc uint32, signedWordOffset uint16) uint32 {
 }
 
 func (cpu *CPU) execADDFSR(inst instruction.Instruction) {
-	var fsrl_offset uint16
-	if instruction.XinstFsr(inst).F() == 0 {
-		fsrl_offset = uint16(Registers.FSR0L)
-	} else if instruction.XinstFsr(inst).F() == 1 {
-		fsrl_offset = uint16(Registers.FSR1L)
-	} else {
-		fsrl_offset = uint16(Registers.FSR2L)
-	}
-
-	low, _ := cpu.DataBus.BusRead(fsrl_offset)
-	high, _ := cpu.DataBus.BusRead(fsrl_offset + 1)
-	value := (uint16(high) << 8) | uint16(low)
-	value += uint16(instruction.XinstFsr(inst).K())
-	cpu.DataBus.BusWrite(fsrl_offset, uint8(value))
-	cpu.DataBus.BusWrite(fsrl_offset+1, uint8(value>>8))
-
-	if instruction.XinstFsr(inst).F() == 3 {
-		cpu.wreg = instruction.Literal(inst).K()
-		cpu.pc = cpu.Stack.Top()
-		if !cpu.stackPop() {
-			return
-		}
-
-		cpu.flush = true
+	index := int(instruction.XinstFsr(inst).F())
+	if index < len(cpu.BankController.FSR) {
+		cpu.BankController.FSR[index] += uint16(instruction.XinstFsr(inst).K())
 	}
 }
 
 func (cpu *CPU) execADDLW(inst instruction.Instruction) {
 	cpu.wreg = cpu.Alu.Add(cpu.wreg, instruction.Literal(inst).K())
+}
+
+func (cpu *CPU) execADDULNK(inst instruction.Instruction) {
+	cpu.BankController.FSR[2] += uint16(instruction.Literal(inst).K())
+	cpu.pc = cpu.Stack.Top()
+	if !cpu.stackPop() {
+		return
+	}
+	cpu.flush = true
 }
 
 func (cpu *CPU) execADDWF(inst instruction.Instruction) {
@@ -561,18 +557,19 @@ func (cpu *CPU) execIORWF(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execLFSR(inst instruction.Instruction) {
-	var fsrl_offset uint16
-	if instruction.LoadFsrHigh(inst).F() == 0 {
-		fsrl_offset = uint16(Registers.FSR0L)
-	} else if instruction.LoadFsrHigh(inst).F() == 1 {
-		fsrl_offset = uint16(Registers.FSR1L)
-	} else {
-		fsrl_offset = uint16(Registers.FSR2L)
+	k := instruction.LoadFsrHigh(inst).K()
+	index := int(instruction.LoadFsrHigh(inst).F())
+	if index < len(cpu.BankController.FSR) {
+		cpu.BankController.FSR[index] &= 0x00FF
+		cpu.BankController.FSR[index] |= uint16(k) << 8
 	}
 
-	cpu.DataBus.BusWrite(fsrl_offset+1, instruction.LoadFsrHigh(inst).K())
 	cpu.nextAction = func(next instruction.Instruction) {
-		cpu.DataBus.BusWrite(fsrl_offset, instruction.LoadFsrLow(next).K())
+		k := instruction.LoadFsrLow(next).K()
+		if index < len(cpu.BankController.FSR) {
+			cpu.BankController.FSR[index] &= 0xFF00
+			cpu.BankController.FSR[index] |= uint16(k)
+		}
 	}
 }
 
@@ -617,26 +614,16 @@ func (cpu *CPU) execMOVLW(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execMOVSF(inst instruction.Instruction) {
-
-	fsr2l, _ := cpu.DataBus.BusRead(Registers.FSR2L)
-	fsr2h, _ := cpu.DataBus.BusRead(Registers.FSR2L + 1)
-	fsr2_val := (uint16(fsr2h) << 8) | uint16(fsr2l)
-	src_value, _ := cpu.DataBus.BusRead(fsr2_val + uint16(instruction.MovsfHighMovss(inst).Z()))
+	src_value, _ := cpu.DataBus.BusRead(uint16(cpu.BankController.FSR[2]) + uint16(instruction.MovsfHighMovss(inst).Z()))
 	cpu.nextAction = func(next instruction.Instruction) {
 		cpu.DataBus.BusWrite(instruction.MovsfLow(next).F(), src_value)
 	}
 }
 
 func (cpu *CPU) execMOVSS(inst instruction.Instruction) {
-	fsr2l, _ := cpu.DataBus.BusRead(Registers.FSR2L)
-	fsr2h, _ := cpu.DataBus.BusRead(Registers.FSR2L + 1)
-	fsr2_val := (uint16(fsr2h) << 8) | uint16(fsr2l)
-	src_value, _ := cpu.DataBus.BusRead(fsr2_val + uint16(instruction.MovsfHighMovss(inst).Z()))
+	src_value, _ := cpu.DataBus.BusRead(uint16(cpu.BankController.FSR[2]) + uint16(instruction.MovsfHighMovss(inst).Z()))
 	cpu.nextAction = func(next instruction.Instruction) {
-		fsr2l, _ := cpu.DataBus.BusRead(Registers.FSR2L)
-		fsr2h, _ := cpu.DataBus.BusRead(Registers.FSR2L + 1)
-		fsr2_val := (uint16(fsr2h) << 8) | uint16(fsr2l)
-		cpu.DataBus.BusWrite(fsr2_val+uint16(instruction.MovsfHighMovss(next).Z()), src_value)
+		cpu.DataBus.BusWrite(uint16(cpu.BankController.FSR[2])+uint16(instruction.MovsfHighMovss(next).Z()), src_value)
 	}
 }
 
@@ -668,13 +655,8 @@ func (cpu *CPU) execPUSH(instruction.Instruction) {
 }
 
 func (cpu *CPU) execPUSHL(inst instruction.Instruction) {
-	fsr2l, _ := cpu.DataBus.BusRead(Registers.FSR2L)
-	fsr2h, _ := cpu.DataBus.BusRead(Registers.FSR2L + 1)
-	fsr2_val := (uint16(fsr2h) << 8) | uint16(fsr2l)
-	cpu.DataBus.BusWrite(fsr2_val, instruction.Literal(inst).K())
-	fsr2_val--
-	cpu.DataBus.BusWrite(Registers.FSR2L, uint8(fsr2_val&0xFF))
-	cpu.DataBus.BusWrite(Registers.FSR2L+1, uint8((fsr2_val>>8)&0xFF))
+	cpu.DataBus.BusWrite(cpu.BankController.FSR[2], instruction.Literal(inst).K())
+	cpu.BankController.FSR[2]--
 }
 
 func (cpu *CPU) execRCALL(inst instruction.Instruction) {
@@ -695,9 +677,7 @@ func (cpu *CPU) execRETFIE(inst instruction.Instruction) {
 		return
 	}
 
-	if cpu.SetGlobalInterruptEnable != nil {
-		cpu.SetGlobalInterruptEnable(cpu.highPriorityInterrupt, true)
-	}
+	cpu.Interrupts.HighPriorityEnable = true
 
 	if instruction.ControlReturn(inst).S() {
 		cpu.wreg = cpu.shadowWreg
@@ -784,36 +764,13 @@ func (cpu *CPU) execSETF(inst instruction.Instruction) {
 
 func (cpu *CPU) execSLEEP(instruction.Instruction) {
 	// TODO: Clear WDT
-	if cpu.EventHandler != nil {
-		cpu.EventHandler.Sleep()
-	}
+	cpu.Sleep.Sleep()
 }
 
 func (cpu *CPU) execSUBFSR(inst instruction.Instruction) {
-	var fsrl_offset uint16
-	if instruction.XinstFsr(inst).K() == 0 {
-		fsrl_offset = uint16(Registers.FSR0L)
-	} else if instruction.XinstFsr(inst).K() == 1 {
-		fsrl_offset = uint16(Registers.FSR1L)
-	} else {
-		fsrl_offset = uint16(Registers.FSR2L)
-	}
-
-	low, _ := cpu.DataBus.BusRead(fsrl_offset)
-	high, _ := cpu.DataBus.BusRead(fsrl_offset + 1)
-	value := (uint16(high) << 8) | uint16(low)
-	value -= uint16(instruction.XinstFsr(inst).K())
-	cpu.DataBus.BusWrite(fsrl_offset, uint8(value))
-	cpu.DataBus.BusWrite(fsrl_offset+1, uint8(value>>8))
-
-	if instruction.XinstFsr(inst).F() == 3 {
-		cpu.wreg = instruction.Literal(inst).K()
-		cpu.pc = cpu.Stack.Top()
-		if !cpu.stackPop() {
-			return
-		}
-
-		cpu.flush = true
+	index := int(instruction.XinstFsr(inst).F())
+	if index < len(cpu.BankController.FSR) {
+		cpu.BankController.FSR[index] -= uint16(instruction.XinstFsr(inst).K())
 	}
 }
 
@@ -830,6 +787,15 @@ func (cpu *CPU) execSUBFWB(inst instruction.Instruction) {
 
 func (cpu *CPU) execSUBLW(inst instruction.Instruction) {
 	cpu.wreg = cpu.Alu.Sub(instruction.Literal(inst).K(), cpu.wreg)
+}
+
+func (cpu *CPU) execSUBULNK(inst instruction.Instruction) {
+	cpu.BankController.FSR[2] -= uint16(instruction.Literal(inst).K())
+	cpu.pc = cpu.Stack.Top()
+	if !cpu.stackPop() {
+		return
+	}
+	cpu.flush = true
 }
 
 func (cpu *CPU) execSUBWF(inst instruction.Instruction) {
