@@ -47,7 +47,7 @@ func main() {
 		Priority:   pic18.InterruptFlag{Register: pic18.Registers.INTCON2, Bit: 2},
 		Enable:     pic18.InterruptFlag{Register: pic18.Registers.INTCON, Bit: 5},
 	})
-	program, err := binary.ReadHexFile("program.hex")
+	program, err := binary.ReadIHexFile("output/program.hex")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -66,7 +66,14 @@ func main() {
 
 	ticks := 0
 	start := time.Now()
-	for run {
+	for {
+		if !run {
+			if time.Since(start) > time.Second*20 {
+				break
+			}
+			time.Sleep(time.Millisecond)
+			continue
+		}
 		ticks++
 		cpu.Tick()
 	}

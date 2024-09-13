@@ -2,10 +2,13 @@
 package binary
 
 import (
+	"bytes"
 	"encoding/hex"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/marcinbor85/gohex"
 )
 
 var commentRe = regexp.MustCompile(`(#.*)?\n?`)
@@ -25,4 +28,23 @@ func ReadHexFile(filename string) ([]byte, error) {
 		return nil, err
 	}
 	return ParseHex(hexData)
+}
+
+// ParseIHex parses a ihex format file
+func ParseIHex(hexFile []byte) ([]byte, error) {
+	mem := gohex.NewMemory()
+	if err := mem.ParseIntelHex(bytes.NewReader(hexFile)); err != nil {
+		return nil, err
+	}
+
+	return mem.ToBinary(0, 64_000, 0), nil
+}
+
+// ReadIHexFile is a convenience function to read a file and parse it using [ParseIHex]
+func ReadIHexFile(filename string) ([]byte, error) {
+	hexData, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return ParseIHex(hexData)
 }

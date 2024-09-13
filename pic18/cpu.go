@@ -93,6 +93,7 @@ func (cpu *CPU) BusWrite(addr uint16, data uint8) AddrMask {
 
 func (cpu *CPU) PowerOnReset() {
 	*cpu = CPU{
+		flush:          true,
 		DataBus:        cpu.DataBus,
 		ProgramBus:     cpu.ProgramBus,
 		EventHandler:   cpu.EventHandler,
