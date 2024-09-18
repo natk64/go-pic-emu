@@ -2,14 +2,6 @@ package pic18
 
 import "github.com/natk64/go-pic-emu/pic18/instruction"
 
-type TblPtrAction int
-
-const (
-	TblPtrPostinc TblPtrAction = 1
-	TblPtrPostdec TblPtrAction = 2
-	TblPtrPreinc  TblPtrAction = 3
-)
-
 type InterruptState int
 
 const (
@@ -21,7 +13,7 @@ const (
 type CPU struct {
 	pc                 uint32
 	fetchedInstruction uint16
-	wreg               uint8
+	WReg               uint8
 
 	pcLatchHigh  uint8
 	pcLatchUpper uint8
@@ -40,9 +32,7 @@ type CPU struct {
 
 	nextAction func(instruction.Instruction)
 
-	TableRead  func(TblPtrAction)
-	TableWrite func(TblPtrAction)
-
+	Table        *TableRWController
 	Sleep        *SleepController
 	Config       *ConfigTable
 	DataBus      DataBusReadWriter
@@ -66,7 +56,7 @@ func (cpu *CPU) BusRead(addr uint16) (uint8, AddrMask) {
 	case Registers.PCLATU:
 		return cpu.pcLatchUpper, 0xFF
 	case Registers.WREG:
-		return cpu.wreg, 0xFF
+		return cpu.WReg, 0xFF
 	default:
 		return 0, 0
 	}
@@ -84,7 +74,7 @@ func (cpu *CPU) BusWrite(addr uint16, data uint8) AddrMask {
 		cpu.pcLatchUpper = data
 		return 0xFF
 	case Registers.WREG:
-		cpu.wreg = data
+		cpu.WReg = data
 		return 0xFF
 	default:
 		return 0
@@ -92,16 +82,16 @@ func (cpu *CPU) BusWrite(addr uint16, data uint8) AddrMask {
 }
 
 func (cpu *CPU) PowerOnReset() {
-	*cpu = CPU{
-		flush:          true,
-		DataBus:        cpu.DataBus,
-		ProgramBus:     cpu.ProgramBus,
-		EventHandler:   cpu.EventHandler,
-		Sleep:          cpu.Sleep,
-		Config:         cpu.Config,
-		Interrupts:     cpu.Interrupts,
-		BankController: cpu.BankController,
-	}
+	cpu.flush = true
+	cpu.pc = 0
+	cpu.fetchedInstruction = 0
+	cpu.interruptState = 0
+	cpu.nextAction = nil
+	cpu.pcLatchHigh = 0
+	cpu.pcLatchUpper = 0
+	cpu.shadowBsr = 0
+	cpu.shadowStatus = 0
+	cpu.shadowWreg = 0
 }
 
 func (cpu *CPU) MclrReset() {
@@ -109,7 +99,7 @@ func (cpu *CPU) MclrReset() {
 }
 
 func (cpu *CPU) GotoInterrupt(highPrio bool) {
-	cpu.shadowWreg = cpu.wreg
+	cpu.shadowWreg = cpu.WReg
 	cpu.shadowStatus = uint8(cpu.Alu.status)
 	cpu.shadowBsr = cpu.BankController.BSR
 	if highPrio {
@@ -186,6 +176,7 @@ func (cpu *CPU) Tick() {
 		}
 	}
 
+	cpu.BankController.ApplyIndirectOp()
 	cpu.FetchInstruction()
 }
 

@@ -37,7 +37,7 @@ func ParseIHex(hexFile []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return mem.ToBinary(0, 64_000, 0), nil
+	return mem.ToBinary(0, 0xFFFF, 0), nil
 }
 
 // ReadIHexFile is a convenience function to read a file and parse it using [ParseIHex]

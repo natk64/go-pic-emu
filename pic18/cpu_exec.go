@@ -1,6 +1,8 @@
 package pic18
 
-import "github.com/natk64/go-pic-emu/pic18/instruction"
+import (
+	"github.com/natk64/go-pic-emu/pic18/instruction"
+)
 
 func (cpu *CPU) ExecuteInstruction(inst instruction.Instruction, extendedSet bool) bool {
 	opcode := inst.Opcode()
@@ -214,7 +216,7 @@ func (cpu *CPU) execADDFSR(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execADDLW(inst instruction.Instruction) {
-	cpu.wreg = cpu.Alu.Add(cpu.wreg, instruction.Literal(inst).K())
+	cpu.WReg = cpu.Alu.Add(cpu.WReg, instruction.Literal(inst).K())
 }
 
 func (cpu *CPU) execADDULNK(inst instruction.Instruction) {
@@ -228,38 +230,38 @@ func (cpu *CPU) execADDULNK(inst instruction.Instruction) {
 
 func (cpu *CPU) execADDWF(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.Add(cpu.wreg, val)
+	result := cpu.Alu.Add(cpu.WReg, val)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
 func (cpu *CPU) execADDWFC(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.AddWithCarry(cpu.wreg, val)
+	result := cpu.Alu.AddWithCarry(cpu.WReg, val)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
 func (cpu *CPU) execANDLW(inst instruction.Instruction) {
-	cpu.wreg = cpu.Alu.And(cpu.wreg, instruction.Literal(inst).K())
+	cpu.WReg = cpu.Alu.And(cpu.WReg, instruction.Literal(inst).K())
 }
 
 func (cpu *CPU) execANDWF(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.And(cpu.wreg, val)
+	result := cpu.Alu.And(cpu.WReg, val)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -374,7 +376,7 @@ func (cpu *CPU) execCALL(inst instruction.Instruction) bool {
 	cpu.pc = (uint32(pcHigh) | uint32(pcLow)) << 1
 
 	if instruction.ControlCallHigh(inst).S() {
-		cpu.shadowWreg = cpu.wreg
+		cpu.shadowWreg = cpu.WReg
 		cpu.shadowStatus = uint8(cpu.Alu.status)
 		cpu.shadowBsr = cpu.BankController.BSR
 	}
@@ -389,7 +391,7 @@ func (cpu *CPU) execCALLW(instruction.Instruction) bool {
 	}
 
 	cpu.pc &= 0xFFFFFF00
-	cpu.pc |= uint32(cpu.wreg)
+	cpu.pc |= uint32(cpu.WReg)
 
 	cpu.flush = true
 	return true
@@ -412,13 +414,13 @@ func (cpu *CPU) execCOMF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
 func (cpu *CPU) execCPFSEQ(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	if val == cpu.wreg {
+	if val == cpu.WReg {
 		cpu.pc += 2
 		cpu.flush = true
 	}
@@ -426,7 +428,7 @@ func (cpu *CPU) execCPFSEQ(inst instruction.Instruction) {
 
 func (cpu *CPU) execCPFSGT(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	if val > cpu.wreg {
+	if val > cpu.WReg {
 		cpu.pc += 2
 		cpu.flush = true
 	}
@@ -434,14 +436,14 @@ func (cpu *CPU) execCPFSGT(inst instruction.Instruction) {
 
 func (cpu *CPU) execCPFSLT(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	if val < cpu.wreg {
+	if val < cpu.WReg {
 		cpu.pc += 2
 		cpu.flush = true
 	}
 }
 
 func (cpu *CPU) execDAW(instruction.Instruction) {
-	cpu.wreg = cpu.Alu.DecimalAdjust(cpu.wreg)
+	cpu.WReg = cpu.Alu.DecimalAdjust(cpu.WReg)
 }
 
 func (cpu *CPU) execDECF(inst instruction.Instruction) {
@@ -451,7 +453,7 @@ func (cpu *CPU) execDECF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -462,7 +464,7 @@ func (cpu *CPU) execDECFSZ(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 
 	if result == 0 {
@@ -478,7 +480,7 @@ func (cpu *CPU) execDCFSNZ(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 
 	if result != 0 {
@@ -505,7 +507,7 @@ func (cpu *CPU) execINCF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -516,7 +518,7 @@ func (cpu *CPU) execINCFSZ(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 
 	if result == 0 {
@@ -532,7 +534,7 @@ func (cpu *CPU) execINFSNZ(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 
 	if result != 0 {
@@ -542,17 +544,17 @@ func (cpu *CPU) execINFSNZ(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execIORLW(inst instruction.Instruction) {
-	cpu.wreg = cpu.Alu.Or(cpu.wreg, instruction.Literal(inst).K())
+	cpu.WReg = cpu.Alu.Or(cpu.WReg, instruction.Literal(inst).K())
 }
 
 func (cpu *CPU) execIORWF(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.Or(cpu.wreg, val)
+	result := cpu.Alu.Or(cpu.WReg, val)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -589,7 +591,7 @@ func (cpu *CPU) execMOVF(inst instruction.Instruction) {
 	if byteInst.D() {
 		cpu.BankController.Write(byteInst.F(), val, byteInst.A())
 	} else {
-		cpu.wreg = val
+		cpu.WReg = val
 	}
 }
 
@@ -610,7 +612,7 @@ func (cpu *CPU) execMOVLB(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execMOVLW(inst instruction.Instruction) {
-	cpu.wreg = instruction.Literal(inst).K()
+	cpu.WReg = instruction.Literal(inst).K()
 }
 
 func (cpu *CPU) execMOVSF(inst instruction.Instruction) {
@@ -628,16 +630,16 @@ func (cpu *CPU) execMOVSS(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execMOVWF(inst instruction.Instruction) {
-	cpu.BankController.Write(instruction.ByteOriented(inst).F(), cpu.wreg, instruction.ByteOriented(inst).A())
+	cpu.BankController.Write(instruction.ByteOriented(inst).F(), cpu.WReg, instruction.ByteOriented(inst).A())
 }
 
 func (cpu *CPU) execMULLW(inst instruction.Instruction) {
-	cpu.Alu.Mul(cpu.wreg, instruction.Literal(inst).K())
+	cpu.Alu.Mul(cpu.WReg, instruction.Literal(inst).K())
 }
 
 func (cpu *CPU) execMULWF(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	cpu.Alu.Mul(cpu.wreg, val)
+	cpu.Alu.Mul(cpu.WReg, val)
 }
 
 func (cpu *CPU) execNEGF(inst instruction.Instruction) {
@@ -680,7 +682,7 @@ func (cpu *CPU) execRETFIE(inst instruction.Instruction) {
 	cpu.Interrupts.HighPriorityEnable = true
 
 	if instruction.ControlReturn(inst).S() {
-		cpu.wreg = cpu.shadowWreg
+		cpu.WReg = cpu.shadowWreg
 		cpu.Alu.status = AluStatus(cpu.shadowStatus)
 		cpu.BankController.BSR = cpu.shadowBsr
 	}
@@ -689,7 +691,7 @@ func (cpu *CPU) execRETFIE(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execRETLW(inst instruction.Instruction) {
-	cpu.wreg = instruction.Literal(inst).K()
+	cpu.WReg = instruction.Literal(inst).K()
 	cpu.pc = cpu.Stack.Top()
 	if !cpu.stackPop() {
 		return
@@ -705,7 +707,7 @@ func (cpu *CPU) execRETURN(inst instruction.Instruction) {
 	}
 
 	if instruction.ControlReturn(inst).S() {
-		cpu.wreg = cpu.shadowWreg
+		cpu.WReg = cpu.shadowWreg
 		cpu.Alu.status = AluStatus(cpu.shadowStatus)
 		cpu.BankController.BSR = cpu.shadowBsr
 	}
@@ -720,7 +722,7 @@ func (cpu *CPU) execRLCF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -731,7 +733,7 @@ func (cpu *CPU) execRLNCF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -742,7 +744,7 @@ func (cpu *CPU) execRRCF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -753,7 +755,7 @@ func (cpu *CPU) execRRNCF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -776,17 +778,17 @@ func (cpu *CPU) execSUBFSR(inst instruction.Instruction) {
 
 func (cpu *CPU) execSUBFWB(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.SubWithBorrow(cpu.wreg, val)
+	result := cpu.Alu.SubWithBorrow(cpu.WReg, val)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
 func (cpu *CPU) execSUBLW(inst instruction.Instruction) {
-	cpu.wreg = cpu.Alu.Sub(instruction.Literal(inst).K(), cpu.wreg)
+	cpu.WReg = cpu.Alu.Sub(instruction.Literal(inst).K(), cpu.WReg)
 }
 
 func (cpu *CPU) execSUBULNK(inst instruction.Instruction) {
@@ -800,23 +802,23 @@ func (cpu *CPU) execSUBULNK(inst instruction.Instruction) {
 
 func (cpu *CPU) execSUBWF(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.Sub(val, cpu.wreg)
+	result := cpu.Alu.Sub(val, cpu.WReg)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
 func (cpu *CPU) execSUBWFB(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.SubWithBorrow(val, cpu.wreg)
+	result := cpu.Alu.SubWithBorrow(val, cpu.WReg)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
@@ -827,23 +829,19 @@ func (cpu *CPU) execSWAPF(inst instruction.Instruction) {
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }
 
 func (cpu *CPU) execTBLRD(inst instruction.Instruction) {
-	action := TblPtrAction(instruction.TableOp(inst).N())
-	if cpu.TableRead != nil {
-		cpu.TableRead(action)
-	}
+	action := TableAction(instruction.TableOp(inst).N())
+	cpu.Table.TableRead(action)
 	cpu.flush = true
 }
 
 func (cpu *CPU) execTBLWT(inst instruction.Instruction) {
-	action := TblPtrAction(instruction.TableOp(inst).N())
-	if cpu.TableWrite != nil {
-		cpu.TableWrite(action)
-	}
+	action := TableAction(instruction.TableOp(inst).N())
+	cpu.Table.TableWrite(action)
 	cpu.flush = true
 }
 
@@ -856,16 +854,16 @@ func (cpu *CPU) execTSTFSZ(inst instruction.Instruction) {
 }
 
 func (cpu *CPU) execXORLW(inst instruction.Instruction) {
-	cpu.wreg = cpu.Alu.Xor(instruction.Literal(inst).K(), cpu.wreg)
+	cpu.WReg = cpu.Alu.Xor(instruction.Literal(inst).K(), cpu.WReg)
 }
 
 func (cpu *CPU) execXORWF(inst instruction.Instruction) {
 	val := cpu.BankController.Read(instruction.ByteOriented(inst).F(), instruction.ByteOriented(inst).A())
-	result := cpu.Alu.Xor(cpu.wreg, val)
+	result := cpu.Alu.Xor(cpu.WReg, val)
 
 	if instruction.ByteOriented(inst).D() {
 		cpu.BankController.Write(instruction.ByteOriented(inst).F(), result, instruction.ByteOriented(inst).A())
 	} else {
-		cpu.wreg = result
+		cpu.WReg = result
 	}
 }

@@ -294,7 +294,7 @@ func (inst BitOriented) A() bool {
 }
 
 func (inst BitOriented) Bit() uint8 {
-	return uint8((inst & 0x0E00) >> 11)
+	return uint8((inst & 0x0E00) >> 9)
 }
 
 func (inst Literal) K() uint8 {

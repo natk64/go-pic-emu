@@ -71,6 +71,10 @@ func (src *interruptSource) Raise() {
 	src.controller.raiseInterrupt(src.controller.sources[src.index])
 }
 
+func (src *interruptSource) Clear() {
+	src.Flag = false
+}
+
 // raiseInterrupt should be called when the interrupt request flag of a source is set.
 // This function itself neither reads nor writes that flag.
 func (controller *InterruptController) raiseInterrupt(src *interruptSource) {
@@ -188,6 +192,7 @@ func (controller *InterruptController) BusWrite(addr uint16, data uint8) (mask A
 
 type Interrupt interface {
 	Raise()
+	Clear()
 }
 
 type InterruptFlag struct {
@@ -227,4 +232,33 @@ func (controller *InterruptController) CreateInterrupt(config InterruptConfig) I
 
 	controller.sources = append(controller.sources, src)
 	return src
+}
+
+type interruptSourceReg struct {
+	enable   uint16
+	request  uint16
+	priority uint16
+}
+
+var peripheralInterruptRegisters = [5]interruptSourceReg{
+	{enable: 0xF9D, request: 0xF9E, priority: 0xF9F},
+	{enable: 0xFA0, request: 0xFA1, priority: 0xFA2},
+	{enable: 0xFA3, request: 0xFA4, priority: 0xFA5},
+	{enable: 0xFB6, request: 0xFB7, priority: 0xFB8},
+	{enable: 0xF76, request: 0xF77, priority: 0xF78},
+}
+
+// PeripheralInterrupt creates a new peripheral interrupt config.
+//
+// registerNum starts at 1.
+func PeripheralInterrupt(debugLabel string, registerNum, bitNum int) InterruptConfig {
+	register := peripheralInterruptRegisters[registerNum-1]
+
+	return InterruptConfig{
+		DebugLabel: debugLabel,
+		Peripheral: true,
+		Enable:     InterruptFlag{Register: register.enable, Bit: uint8(bitNum)},
+		Request:    InterruptFlag{Register: register.request, Bit: uint8(bitNum)},
+		Priority:   InterruptFlag{Register: register.priority, Bit: uint8(bitNum)},
+	}
 }
